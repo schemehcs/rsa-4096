@@ -1,0 +1,9 @@
+[package]
+name = "rsa-4096"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crypto-bigint = "0.7.3"
+crypto-primes = "0.7.0"
+rand = "0.10.1"
