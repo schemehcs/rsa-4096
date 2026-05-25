@@ -1,7 +1,11 @@
+use std::{error::Error, fmt::Display};
+
 use crypto_bigint::{
-    NonZero, Odd, U4096,
-    modular::{FixedMontyForm, MontyParams},
+    NonZero, Odd, modular::{FixedMontyForm, MontyParams}
 };
+
+pub use crypto_bigint::U4096;
+
 use crypto_primes::{Flavor, random_prime};
 
 pub struct PubKey {
@@ -14,11 +18,44 @@ pub struct PrivKey {
     d: U4096,
 }
 
-pub fn encrypt(x: U4096, pub_key: &PubKey) -> U4096 {
+#[derive(Debug)]
+pub struct CryptErr;
+
+impl Display for CryptErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "crypt error")
+    }
+}
+
+impl Error for CryptErr {}
+
+pub fn encrypt_slice(le_slice: &[u8], pub_key: &PubKey) -> Result<Vec<u8>, CryptErr> {
+    if le_slice.len() != 512 {
+        return Err(CryptErr);
+    }
+    let x = U4096::from_le_slice(le_slice);
+    if x >= pub_key.n {
+        return Err(CryptErr);
+    }
+    Ok(encrypt_u4096(x, pub_key).to_le_bytes().to_vec())
+}
+
+pub fn encrypt_u4096(x: U4096, pub_key: &PubKey) -> U4096 {
     pow_mod(x, pub_key.e, pub_key.n)
 }
 
-pub fn decrypt(y: U4096, priv_key: &PrivKey) -> U4096 {
+pub fn decrypt_slice(le_slice: &[u8], priv_key: &PrivKey) -> Result<Vec<u8>, CryptErr> {
+    if le_slice.len() != 512 {
+        return Err(CryptErr);
+    }
+    let y = U4096::from_le_slice(le_slice);
+    if y >= priv_key.n {
+        return Err(CryptErr);
+    }
+    Ok(decrypt_u4096(y, priv_key).to_le_bytes().to_vec())
+}
+
+pub fn decrypt_u4096(y: U4096, priv_key: &PrivKey) -> U4096 {
     pow_mod(y, priv_key.d, priv_key.n)
 }
 
@@ -64,14 +101,14 @@ mod tests {
     #[test]
     fn it_works() {
         let (pub_key, priv_key) = rand_rsa_suite();
+
         for i in 100..105_u32 {
-            let message = U4096::from(i);
-            let encrypted = encrypt(message, &pub_key);
-            let decrypted = decrypt(encrypted, &priv_key);
+            let mut input = [0u8; 512];
+            input[..4].copy_from_slice(&i.to_le_bytes());
+            let encrypted = encrypt_slice(&input, &pub_key).unwrap();
+            let decrypted = decrypt_slice(&encrypted, &priv_key).unwrap();
             assert_eq!(
-                message, decrypted,
-                "comparing message:{} vs decrypted:{}",
-                message, decrypted
+                &input[..], &decrypted,
             );
         }
     }
