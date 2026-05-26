@@ -30,8 +30,21 @@ impl Display for CryptErr {
 
 impl Error for CryptErr {}
 
+#[derive(Debug)]
+pub struct SigErr;
+
+impl Display for SigErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "signature error")
+    }
+}
+
+impl Error for SigErr {}
+
+pub const KEY_LEN: usize = 512;
+
 pub fn encrypt_slice(be_slice: &[u8], pub_key: &PubKey) -> Result<Vec<u8>, CryptErr> {
-    if be_slice.len() != 512 {
+    if be_slice.len() != KEY_LEN {
         return Err(CryptErr);
     }
     let x = U4096::from_be_slice(be_slice);
@@ -46,7 +59,7 @@ pub fn encrypt_u4096(x: U4096, pub_key: &PubKey) -> U4096 {
 }
 
 pub fn decrypt_slice(be_slice: &[u8], priv_key: &PrivKey) -> Result<Vec<u8>, CryptErr> {
-    if be_slice.len() != 512 {
+    if be_slice.len() != KEY_LEN {
         return Err(CryptErr);
     }
     let y = U4096::from_be_slice(be_slice);
@@ -82,6 +95,22 @@ pub fn rand_rsa_suite() -> (PubKey, PrivKey) {
     }
 }
 
+pub fn sign_slice(be_slice: &[u8], priv_key: &PrivKey) -> Result<Vec<u8>, SigErr> {
+    decrypt_slice(be_slice, priv_key).map_err(|_| SigErr)
+}
+
+pub fn sign_u4096(x: U4096, priv_key: &PrivKey) -> U4096 {
+    decrypt_u4096(x, priv_key)
+}
+
+pub fn verify_slice(be_slice: &[u8], pub_key: &PubKey) -> Result<Vec<u8>, SigErr> {
+    encrypt_slice(be_slice, pub_key).map_err(|_| SigErr)
+}
+
+pub fn verify(y: U4096, pub_key: &PubKey) -> U4096 {
+    encrypt_u4096(y, pub_key)
+}
+
 fn pow_mod(base: U4096, exp: U4096, modulus: U4096) -> U4096 {
     let odd_mod = Odd::new(modulus).unwrap();
     let params = MontyParams::new(odd_mod);
@@ -104,7 +133,7 @@ mod tests {
         let (pub_key, priv_key) = rand_rsa_suite();
 
         for i in 100..105_u32 {
-            let mut input = [0u8; 512];
+            let mut input = [0u8; KEY_LEN];
             input[..4].copy_from_slice(&i.to_be_bytes());
             let encrypted = encrypt_slice(&input, &pub_key).unwrap();
             let decrypted = decrypt_slice(&encrypted, &priv_key).unwrap();
