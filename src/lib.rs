@@ -9,11 +9,13 @@ pub use crypto_bigint::U4096;
 
 use crypto_primes::{Flavor, random_prime};
 
+#[derive(PartialEq, Clone)]
 pub struct PubKey {
     n: U4096,
     e: U4096,
 }
 
+#[derive(PartialEq, Clone)]
 pub struct PrivKey {
     n: U4096,
     d: U4096,
